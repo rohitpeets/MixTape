@@ -110,32 +110,52 @@ Executes a read_notification() function that calls mark_as_read(notification_id)
 ## pattern noticed :
 every route delegates to a service function, routes just do parsing/formatting.
 
-** Solving all five bugs **
+** Solving bugs **
 
-## Reproduce Bugs
+## Reproduce 
+# Issue #2: Last song in playlist never shows up
 
-** The same song keeps showing up twice in search | `search_service.py` |
-Possible scenarios:
-1- The database table being queried has more than one entries for the same song.
-2- Duplicate function call.
-3- Wrong retreival of data.
+**File:** services/playlist_service.py
 
-** The last song in a playlist never shows up | `playlist_service.py` |
-Possible scenarios:
-1- Inconsistent database ( database being queried  might not contain data in the desired format.)
-2- Wrong data retreival.(Wrong Queries being used to extract data from the database.)
-3- wrong indexing
+**How I reproduced it:**
+Queried the playlist_entries table directly for playlist "Late Night Vibes"
+(id b7df8851-e583-439b-b6f4-afd4dbec1ca1) via flask shell — confirmed 7 rows
+with position values 1 through 7, with song id e8c25e28-c464-4639-aa97-8adbd3cf7dc9
+at position 7 (the last song).
 
-** Friends Listening Now shows people from yesterday | `feed_service.py` |
-Possible scenarios:
-1- Timestamping troubles.
+Then hit GET /playlists/b7df8851-e583-439b-b6f4-afd4dbec1ca1/songs. The API
+returned count: 6, and song e8c25e28-... was missing from the results
+entirely, despite the other 6 songs (positions 1-6) all appearing correctly.
+## Issue #4: Friends Listening Now shows people from yesterday
 
-** My listening streak keeps resetting | `streak_service.py`
-Possible scenarios:
-1- Wrong iteration logic.
-2- Executing the function clears the streak quantity to zero.
+**File:** services/feed_service.py
 
-** I got notified when a friend added my song to a playlist but not when they rated it | `notification_service.py` |
-Possible scenarios:
-1- Missing or wrong implmentation of the create_notification() function inside rate_song().
+**How I reproduced it:**
+Checked real listening event timestamps for user "nova"'s 3 friends via
+flask shell — all were from the previous day or older relative to actual
+system time (2026-07-07 11:31). Hitting GET /feed/<user_id>/listening-now
+initially returned count: 0 since even those events fell outside the 24h
+window.
+
+To directly demonstrate the bug, manually inserted a ListeningEvent for
+friend "kenji" timestamped 20 hours in the past. Re-hit the same endpoint —
+kenji appeared in the "listening now" feed, attributed to listening to
+"First Light" nearly a full day ago.
+
+## Issue #5: No notification when a friend rates my song
+
+**File:** services/notification_service.py
+
+**How I reproduced it:**
+Baseline: user "nova" had 1 existing notification (type
+song_added_to_playlist) for song "Midnight Drive" before any action.
+
+Had a different user ("darius") POST a 5-star rating to
+/songs/b7dca080-ac9f-4941-81e9-39af45d4c01a/rate. The rating was created
+successfully (returned a valid rating id, score, timestamps).
+
+Re-checked nova's notifications afterward — count was still 1, with no new
+entry for the rating. The working playlist-add notification exists, but no
+equivalent notification was created for the rating action.
+
 
