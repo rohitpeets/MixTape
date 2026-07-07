@@ -112,50 +112,85 @@ every route delegates to a service function, routes just do parsing/formatting.
 
 ** Solving bugs **
 
-## Reproduce 
-# Issue #2: Last song in playlist never shows up
+## Reproduce And Fix
+## Issue #2: Last song in playlist never shows up
 
 **File:** services/playlist_service.py
 
 **How I reproduced it:**
-Queried the playlist_entries table directly for playlist "Late Night Vibes"
-(id b7df8851-e583-439b-b6f4-afd4dbec1ca1) via flask shell — confirmed 7 rows
-with position values 1 through 7, with song id e8c25e28-c464-4639-aa97-8adbd3cf7dc9
-at position 7 (the last song).
+playlist_entries for "Late Night Vibes" (b7df8851-e583-439b-b6f4-afd4dbec1ca1)
+has 7 rows, positions 1-7, song e8c25e28-c464-4639-aa97-8adbd3cf7dc9 at
+position 7. GET /playlists/b7df8851.../songs returned count: 6, position 7
+missing.
 
-Then hit GET /playlists/b7df8851-e583-439b-b6f4-afd4dbec1ca1/songs. The API
-returned count: 6, and song e8c25e28-... was missing from the results
-entirely, despite the other 6 songs (positions 1-6) all appearing correctly.
+**How I found the root cause:**
+Opened get_playlist_songs() (README named this file). Query was correct —
+join, filter by playlist_id, order by position. Found it in the return
+line: `return [song.to_dict() for song in songs[:-1]]`.
+
+**The root cause:**
+Query returns songs ordered by position correctly, but `[:-1]` drops the
+last item — so the highest-position song is always excluded, regardless of
+playlist length.
+
+**My fix and side-effect check:**
+Removed `[:-1]`, return `songs`. Reran GET — count 7, song e8c25e28-... now
+appears last, in order. Checked get_playlist() and add_to_playlist() —
+neither depends on the truncated list. Committed as 6491a87.
+
+
 ## Issue #4: Friends Listening Now shows people from yesterday
 
 **File:** services/feed_service.py
 
 **How I reproduced it:**
-Checked real listening event timestamps for user "nova"'s 3 friends via
-flask shell — all were from the previous day or older relative to actual
-system time (2026-07-07 11:31). Hitting GET /feed/<user_id>/listening-now
-initially returned count: 0 since even those events fell outside the 24h
-window.
+nova's friends all had listening events from 07-05/07-06, older than 24h
+vs real time (2026-07-07 11:31). GET /feed/60233a52.../listening-now
+returned count: 0. Inserted a ListeningEvent for kenji (14577a2b-...)
+timestamped 20h ago — kenji then appeared in the feed.
 
-To directly demonstrate the bug, manually inserted a ListeningEvent for
-friend "kenji" timestamped 20 hours in the past. Re-hit the same endpoint —
-kenji appeared in the "listening now" feed, attributed to listening to
-"First Light" nearly a full day ago.
+**How I found the root cause:**
+Read get_friends_listening_now() — query and timestamp comparisons were
+correct. Found it in the constant: `RECENT_THRESHOLD = timedelta(hours=24)`.
+
+**The root cause:**
+Filter logic is correct, but the threshold is 24 hours — too wide for
+"listening now." Anything from the entire previous day still counts as
+current.
+
+**My fix and side-effect check:**
+Changed RECENT_THRESHOLD to timedelta(minutes=30). Reran test — kenji's
+20h-old event disappeared (count: 0). Inserted a fresh event for kenji —
+he reappeared with the new timestamp, confirming the filter works both
+ways. get_activity_feed() doesn't use this constant — unaffected.
+Committed separately.
+
 
 ## Issue #5: No notification when a friend rates my song
 
 **File:** services/notification_service.py
 
 **How I reproduced it:**
-Baseline: user "nova" had 1 existing notification (type
-song_added_to_playlist) for song "Midnight Drive" before any action.
+nova had 1 notification (song_added_to_playlist) before any action. darius
+POSTed a 5-star rating on nova's song "Midnight Drive" via
+/songs/b7dca080.../rate — rating saved successfully. Checked nova's
+notifications after — still 1, no new entry.
 
-Had a different user ("darius") POST a 5-star rating to
-/songs/b7dca080-ac9f-4941-81e9-39af45d4c01a/rate. The rating was created
-successfully (returned a valid rating id, score, timestamps).
+**How I found the root cause:**
+Compared add_to_playlist() (works) to rate_song() (doesn't) line by line,
+per the project hint. add_to_playlist() calls create_notification()
+targeting song.shared_by after its commit. rate_song() commits and
+returns — no create_notification() call anywhere in it.
 
-Re-checked nova's notifications afterward — count was still 1, with no new
-entry for the rating. The working playlist-add notification exists, but no
-equivalent notification was created for the rating action.
+**The root cause:**
+rate_song() never calls create_notification() — never implemented, not
+broken logic. The rating saves correctly; it's just not wired to the
+notification system.
 
-
+**My fix and side-effect check:**
+Added create_notification() in rate_song() after the commit, same
+shared_by guard as add_to_playlist(), type "song_rated". Reran test —
+darius rating nova's song produced a new notification: count 1 → 2, entry
+reads "darius rated your song 'Midnight Drive' 4 stars." Rating itself
+still updates correctly (same id, no duplicate). get_notifications() and
+mark_as_read() unchanged.
