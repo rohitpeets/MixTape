@@ -1,3 +1,14 @@
+## AI Usage
+
+Used Claude as a reference tool for explaining functionality and mechanics — not for tracing bugs or writing fixes.
+
+**Setup:** Hit PowerShell issues activating the venv and setting `FLASK_APP`. Asked Claude to explain the correct syntax (`$env:FLASK_APP=...` instead of bash-style `export`).
+
+**Architecture:** Before bug hunting, had Claude explain the app factory pattern, blueprint registration, and the overall file structure (route files, service files, models, seed data). Also asked it to explain `db.init_app()` vs `SQLAlchemy()` directly, and why `db.create_all()` needs an app context — concepts I hadn't fully locked in from the docs alone.
+
+**Bug hunting (Issues #2, #4, #5):** I did the actual tracing myself — reproducing each bug, reading through the service files, and finding the root cause. When I hit a function or pattern I didn't fully understand (e.g. how a query was constructed, or what a specific line was doing), I asked Claude to explain what it did. I did not have Claude locate the bugs or write the fixes.
+
+**Verification:** All reproduction steps, root cause identification, fixes, and side-effect checks in the write-ups above were done and confirmed by me directly against the running app.
 ## app.py
 This file is responsible for creating a Flask App instance and creating a database using SQLAlchemy ( Which uses python objects to represent a Table/ORM).
 In this file,we also:
