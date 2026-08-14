@@ -2,14 +2,14 @@
 
 A social music app where friends share songs, build collaborative playlists, and track listening stats.
 
-This is the starter repo for **Project 5: Mixtape Bug Hunt**. The app has five open issues in its tracker. Your job is to find, fix, and document at least three of them.
+A social music app where friends share songs, build collaborative playlists, and track listening stats. I picked up an existing codebase with five known bugs in its service layer, traced each one from its route through to the failing service, and fixed and documented three: the listening-streak reset boundary, the duplicate-song search bug, and the missing last-song-in-playlist issue. The remaining two (stale "friends listening now" feed, missing rating notifications) are tracked as open issues below.
 
 ---
 
 ## App Structure
 
 ```
-ai201-project5-mixtape-starter/
+MixTape/
 ├── app.py                      # Flask app factory and DB setup
 ├── models.py                   # SQLAlchemy models for all entities
 ├── routes/
@@ -81,7 +81,7 @@ pytest tests/
 
 ---
 
-## The Five Open Issues
+## Known Issues (3 of 5 fixed)
 
 | # | Title | Affected service |
 |---|-------|-----------------|
@@ -91,7 +91,7 @@ pytest tests/
 | 4 | I got notified when a friend added my song to a playlist but not when they rated it | `notification_service.py` |
 | 5 | The last song in a playlist never shows up | `playlist_service.py` |
 
-Full issue descriptions are in the **Project 5 brief**. Read them carefully before opening any service file.
+See the commit history for fix details on the three resolved issues.
 
 ---
 
@@ -103,15 +103,3 @@ Start with `models.py` to understand the data model. Then trace a feature throug
 - A user views a playlist → `GET /playlists/<id>/songs` → `routes/playlists.py` → `playlist_service.get_playlist_songs()`
 
 Understanding the full call chain is part of the exercise — don't skip to the service file directly.
-
----
-
-## Submission
-
-Create a branch named `bugfix/mixtape` for your fixes. Each bug fix should be its own commit using conventional format:
-
-```
-fix: correct Sunday boundary condition in streak reset logic
-```
-
-See the project brief for full submission requirements.
