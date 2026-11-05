@@ -1,12 +1,20 @@
 # Mixtape
 
-A social music app where friends share songs, build collaborative playlists, and track listening stats.
+A Flask social music app where friends share songs, build collaborative playlists, and track listening stats.
 
-A social music app where friends share songs, build collaborative playlists, and track listening stats. I picked up an existing codebase with five known bugs in its service layer, traced each one from its route through to the failing service, and fixed and documented three: the listening-streak reset boundary, the duplicate-song search bug, and the missing last-song-in-playlist issue. The remaining two (stale "friends listening now" feed, missing rating notifications) are tracked as open issues below.
+I picked up this codebase with five known bugs in its service layer, traced each one from its route to the failing service, and fixed three: the listening-streak reset boundary, duplicate songs in search, and the last song missing from playlists. The other two are still open. The commit history has the details of each fix.
 
----
+## Known issues (3 of 5 fixed)
 
-## App Structure
+| # | Issue | Service | Status |
+|---|-------|---------|--------|
+| 1 | My listening streak keeps resetting | `streak_service.py` | Fixed |
+| 2 | Friends Listening Now shows people from yesterday | `feed_service.py` | Open |
+| 3 | The same song keeps showing up twice in search | `search_service.py` | Fixed |
+| 4 | I got notified when a friend added my song to a playlist but not when they rated it | `notification_service.py` | Open |
+| 5 | The last song in a playlist never shows up | `playlist_service.py` | Fixed |
+
+## App structure
 
 ```
 MixTape/
@@ -32,74 +40,27 @@ MixTape/
 └── .gitignore
 ```
 
-The bugs live in the `services/` layer. The routes call services — if something is broken in an endpoint, trace it back to the service it calls.
+Routes call services, and the bugs live in `services/`. To debug a broken endpoint, follow it to the service it calls. For example:
 
----
+- Rating a song: `POST /songs/<song_id>/rate` → `routes/songs.py` → `notification_service.rate_song()`
+- Viewing a playlist: `GET /playlists/<id>/songs` → `routes/playlists.py` → `playlist_service.get_playlist_songs()`
 
 ## Setup
-
-Create and activate a virtual environment:
 
 ```bash
 python -m venv .venv
 
 # macOS / Linux
 source .venv/bin/activate
-
 # Windows (Command Prompt)
 .venv\Scripts\activate.bat
-
 # Windows (Git Bash)
 source .venv/Scripts/activate
-```
 
-Install dependencies:
-
-```bash
 pip install -r requirements.txt
-```
-
-Seed the database with test data:
-
-```bash
-python seed_data.py
-```
-
-Run the app:
-
-```bash
+python seed_data.py              # seed the database with test data
 FLASK_APP=app:create_app flask run
+pytest tests/                    # run the tests
 ```
 
-> **macOS note:** If the app starts but requests hang or return connection refused, try `http://127.0.0.1:5000` instead of `http://localhost:5000`. On macOS, `localhost` sometimes resolves to an IPv6 address that Flask isn't listening on.
-
-Run tests:
-
-```bash
-pytest tests/
-```
-
----
-
-## Known Issues (3 of 5 fixed)
-
-| # | Title | Affected service |
-|---|-------|-----------------|
-| 1 | My listening streak keeps resetting | `streak_service.py` |
-| 2 | Friends Listening Now shows people from yesterday | `feed_service.py` |
-| 3 | The same song keeps showing up twice in search | `search_service.py` |
-| 4 | I got notified when a friend added my song to a playlist but not when they rated it | `notification_service.py` |
-| 5 | The last song in a playlist never shows up | `playlist_service.py` |
-
-See the commit history for fix details on the three resolved issues.
-
----
-
-## How to Read the Code
-
-Start with `models.py` to understand the data model. Then trace a feature through from its route to its service. For example:
-
-- A user rates a song → `POST /songs/<song_id>/rate` → `routes/songs.py` → `notification_service.rate_song()`
-- A user views a playlist → `GET /playlists/<id>/songs` → `routes/playlists.py` → `playlist_service.get_playlist_songs()`
-
-Understanding the full call chain is part of the exercise — don't skip to the service file directly.
+On macOS, if requests hang or get "connection refused", use `http://127.0.0.1:5000` instead of `http://localhost:5000`. `localhost` can resolve to an IPv6 address that Flask isn't listening on.
